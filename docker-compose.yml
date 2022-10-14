@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+
+  apache:
+    image: httpd:alpine
+    container_name: apache
+    volumes:
+      - ./apache/html:/usr/local/apache2/htdocs
+    # httpdイメージでは80番ポートを公開している
+    ports:
+      - "83:80"
+    depends_on:
+      - rails
+
+  # railイメージを構築、railsコンテナを構築、起動
+  rails:
+    # railsフォルダの中にあるDockerfileをビルド
+    build:
+      context: ./rails
+      # Dockerイメージをビルドする際にDockerfileに渡す値を指定
+      args:
+        WORKDIR: $WORKDIR
+    container_name: rails
+    environment:
+      # rack-corsで使用する
+      ACCESS_CONTROL_ALLOW_ORIGIN: "localhost:$APACHE_PORT"
+    # サーバの起動フラッグを削除(起動されていると勘違いしてしまわないように)
+    # ポートを$CONTAINER_PORTとしてサーバ起動(Dockerfile内でも起動しているが)
+    command: /bin/sh -c "rm -f tmp/pids/server.pid && bundle exec rails s -p 3004 -b '0.0.0.0'"
+    # コンテナ中のappフォルダをローカルのappフォルダに結びつける（コンテナを起動する際にホストマシン上のデータがコンテナにマウントされる）
+    volumes:
+      - ./rails:/$WORKDIR
+    # コンテナのポートとホストのポートを対応付ける
+    ports:
+      - "3004:$CONTAINER_PORT"
+    # attachに必要,ターミナルの入出力がコンテナのbashとつながる？,attachしないとブラウザは一生読み込み中に
+    stdin_open: true
+    # これがないとattachしてもすぐ切れてしまう？
+    tty: true
